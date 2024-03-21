@@ -192,19 +192,38 @@ window.addEventListener('dblclick', () => {
 	}
 });
 
-window.addEventListener('click', (event) => {
-	if (config.activeCamera === 'вид сверху' && cursor_point.material.visible) {
-		const geometry_measuring_point = new THREE.SphereGeometry(cursor_point.geometry.parameters.radius);
-		const material_measuring_point = new THREE.MeshBasicMaterial({
-			color: 0xffcc33,
-		});
-		const measuring_point = new THREE.Mesh(geometry_measuring_point, material_measuring_point);
-		group_measuring_points.add(measuring_point);
-
-		measuring_point.position.x = cursor_point.position.x;
-		measuring_point.position.z = cursor_point.position.z;
+window.addEventListener("mousedown", (event) => {
+	if (event.button === 0){
+		if (config.activeCamera === 'вид сверху' && cursor_point.material.visible) {
+			const geometry_measuring_point = new THREE.SphereGeometry(cursor_point.geometry.parameters.radius);
+			const material_measuring_point = new THREE.MeshBasicMaterial({
+				color: 0xffcc33,
+			});
+			const measuring_point = new THREE.Mesh(geometry_measuring_point, material_measuring_point);
+			group_measuring_points.add(measuring_point);
+	
+			measuring_point.position.x = cursor_point.position.x;
+			measuring_point.position.z = cursor_point.position.z;
+		}
+	} else if (event.button === 2){
+		if (config.activeCamera === 'вид сверху'){
+			raycaster.setFromCamera(pointer, activeCamera);
+			const intersects = raycaster.intersectObjects(group_measuring_points.children);
+			for (let i = 0; i < intersects.length; i++) {
+				console.log(intersects[i].object);
+				const object = intersects[i].object;
+				object.geometry.dispose();
+				object.material.dispose();
+				group_measuring_points.remove(object);
+				renderer.renderLists.dispose();
+			}
+		}
 	}
 });
+
+window.oncontextmenu = function () {
+	return false;
+}
 
 function changeCamera() {
 	const value = config.activeCamera;
