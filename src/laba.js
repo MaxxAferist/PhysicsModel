@@ -1,7 +1,7 @@
-import * as THREE from 'three';
-import * as dat from 'lil-gui';
-import init from './init';
-import './style.css';
+import * as THREE from './three.module.js';
+import { FontLoader } from './FontLoader.js';
+import { TextGeometry } from './TextGeometry.js';
+import init from './init.js';
 
 const { sizes, scene, canvas, perspectiveCamera, orthographicCamera, renderer, controls_persp, controls_orth, raycaster } = init();
 
@@ -9,14 +9,6 @@ const axisHelper = new THREE.AxesHelper(25);
 scene.add(axisHelper);
 
 const pointer = new THREE.Vector2();
-
-const cursor_point_geometry = new THREE.SphereGeometry(0.15);
-const cursor_material = new THREE.MeshStandardMaterial({
-	color: 0x999999,
-	visible: false,
-});
-const cursor_point = new THREE.Mesh(cursor_point_geometry, cursor_material);
-scene.add(cursor_point);
 
 const group_measuring_points = new THREE.Group();
 scene.add(group_measuring_points);
@@ -54,16 +46,61 @@ const dict_controls = {
 	},
 }
 
-activeCamera.position.z = 0;
-activeCamera.position.y = 30;
+activeCamera.position.set(0, 30, 0);
+activeCamera.rotation.set(0, 0, 0);
 controls_persp.enabled = true;
 controls_orth.enabled = false;
 
- /** DAT.GUI */
-const gui = new dat.GUI();
-const cameraController = gui.add(config, 'activeCamera', config['camers']).name('Камера');
-cameraController.onChange(changeCamera);
-const magnetController = gui.add(config, 'magnetizm').name('Магнитный курсор');
+
+/** ADD BUTTONS IN HTML */
+
+/** Select */
+const divForm = document.createElement('div');
+divForm.className = "formDiv";
+
+const settingsForm = document.createElement('form');
+settingsForm.name = "setingsForm";
+
+const pSelect = document.createElement("p");
+pSelect.textContent = "Камера: "
+
+const cameraSelect = document.createElement("select");
+cameraSelect.name = "cameraSelect";
+
+for (let i = 0; i < config.camers.length; i++) {
+	const option = document.createElement('option');
+	option.value = config.camers[i];
+	option.textContent = config.camers[i];
+	if (i === 0){
+		option.selected = true;
+	}
+	cameraSelect.appendChild(option);
+}
+
+document.body.appendChild(divForm);
+divForm.appendChild(settingsForm);
+settingsForm.appendChild(pSelect);
+pSelect.appendChild(cameraSelect);
+
+cameraSelect.addEventListener("change", () => {
+	config.activeCamera = cameraSelect.options[cameraSelect.selectedIndex].text;
+	changeCamera();
+});
+
+/** CheckBox */
+const checkBoxMagnet = document.createElement('input');
+checkBoxMagnet.type = "checkbox";
+checkBoxMagnet.id = "magnet";
+
+const pCheckBox = document.createElement("p");
+pCheckBox.textContent = "Магнитный курсор: "
+
+settingsForm.appendChild(pCheckBox);
+pCheckBox.appendChild(checkBoxMagnet);
+
+checkBoxMagnet.addEventListener("change", () => {
+	config.magnetizm = checkBoxMagnet.checked;
+});
 
 /** Making PLANE */
 const plane_geometry = new THREE.PlaneGeometry(43, 30);
@@ -122,6 +159,16 @@ electrod2.receiveShadow = true;
 scene.add(electrod2);
 
 
+/** Making CURSOR */
+const cursor_point_geometry = new THREE.SphereGeometry(0.15);
+const cursor_material = new THREE.MeshStandardMaterial({
+	color: 0xff9933,
+	visible: false,
+});
+const cursor_point = new THREE.Mesh(cursor_point_geometry, cursor_material);
+scene.add(cursor_point);
+
+
 /** Making SETKA */
 const checkMesh = new THREE.Group();
 const checkMesh_material = new THREE.MeshStandardMaterial({
@@ -146,6 +193,46 @@ for (let i = 1; i < checkMesh_height; i++) {
 
 scene.add(checkMesh);
 
+/** VALUE OF DIVISION */
+
+const group_text = new THREE.Group();
+
+for (let i = 0; i < checkMesh_width; i++) {
+	const loaderFont = new FontLoader();
+	loaderFont.load('./fonts/Nyasha Sans_Regular.json', function ( font ) {
+		const text_geometry = new TextGeometry(i.toString(), {
+			font: font,
+			size: 0.25,
+			height: 0.1,
+		});
+		const text = new THREE.Mesh(text_geometry);
+		text.position.x = i + (table.position.x - table.geometry.parameters.width / 2) - text.geometry.parameters.options.size / 2;
+		text.position.z = (table.position.z + table.geometry.parameters.height / 2) + text.geometry.parameters.options.size * 2;
+		text.position.y = -text.geometry.parameters.options.depth / 2;
+		text.rotation.x = -Math.PI * 0.5;
+		group_text.add(text);
+	});
+}
+
+for (let i = 0; i < checkMesh_height; i++) {
+	const loaderFont = new FontLoader();
+	loaderFont.load('./fonts/Nyasha Sans_Regular.json', function ( font ) {
+		const text_geometry = new TextGeometry(i.toString(), {
+			font: font,
+			size: 0.25,
+			height: 0.1,
+		});
+		const text = new THREE.Mesh(text_geometry);
+		text.position.x = (table.position.x - table.geometry.parameters.width / 2) - text.geometry.parameters.options.size * 2;
+		text.position.z = -i + (table.position.z + table.geometry.parameters.height / 2) + text.geometry.parameters.options.size / 2;
+		text.position.y = -text.geometry.parameters.options.depth / 2;
+		text.rotation.x = -Math.PI * 0.5;
+		group_text.add(text);
+	});
+}
+
+scene.add(group_text);
+
 const tick = () => {
 	activeControls.update();
 	renderer.render(scene, activeCamera);
@@ -154,11 +241,13 @@ const tick = () => {
 tick();
 
 /** Базовые обпаботчики событий длы поддержки ресайза */
-window.addEventListener('resize', updateSizeAfterResize);
+canvas.addEventListener('resize', updateSizeAfterResize);
 
-document.addEventListener('pointermove', (event) => {
-	pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+canvas.addEventListener('mousemove', (event) => {
+	const offsetLeft = event["toElement"]["offsetParent"]["offsetLeft"];
+	const offsetTop = event["toElement"]["offsetParent"]["offsetTop"];
+	pointer.x = ( (event.clientX - offsetLeft) / canvas.clientWidth ) * 2 - 1;
+	pointer.y = - ( (event.clientY - offsetTop) / canvas.clientHeight ) * 2 + 1;
 
 	if (config.activeCamera === 'вид сверху') {
 		raycaster.setFromCamera(pointer, activeCamera);
@@ -181,7 +270,7 @@ document.addEventListener('pointermove', (event) => {
 	}
 });
 
-window.addEventListener('dblclick', () => {
+canvas.addEventListener('dblclick', () => {
 	if (!document.fullscreenElement) {
 		canvas.requestFullscreen();
 	} else {
@@ -189,7 +278,7 @@ window.addEventListener('dblclick', () => {
 	}
 });
 
-window.addEventListener("mousedown", (event) => {
+canvas.addEventListener("mousedown", (event) => {
 	if (event.button === 0){
 		if (config.activeCamera === 'вид сверху' && cursor_point.material.visible) {
 			const geometry_measuring_point = new THREE.SphereGeometry(cursor_point.geometry.parameters.radius);
@@ -207,7 +296,6 @@ window.addEventListener("mousedown", (event) => {
 			raycaster.setFromCamera(pointer, activeCamera);
 			const intersects = raycaster.intersectObjects(group_measuring_points.children);
 			for (let i = 0; i < intersects.length; i++) {
-				console.log(intersects[i].object);
 				const object = intersects[i].object;
 				object.geometry.dispose();
 				object.material.dispose();
@@ -218,7 +306,7 @@ window.addEventListener("mousedown", (event) => {
 	}
 });
 
-window.oncontextmenu = function () {
+canvas.oncontextmenu = function () {
 	return false;
 }
 
@@ -245,8 +333,8 @@ function changeControls() {
 
 function updateSizeAfterResize() {
 	// Обновляем размеры
-	sizes.width = window.innerWidth;
-	sizes.height = window.innerHeight;
+	sizes.width = canvas.clientWidth;
+	sizes.height = canvas.clientHeight;
 
 	let height_camera = 32;
 	let width_camera = height_camera * (sizes.width / sizes.height);
