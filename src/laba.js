@@ -16,6 +16,10 @@ scene.add(group_measuring_points);
 let activeCamera = perspectiveCamera;
 let activeControls = controls_persp;
 
+let potential = 0;
+let tay = 1;
+const e0 = 1;
+
 const config = {
 	'activeCamera': 'перспективная',
 	'camers': ['перспективная', 'вид сверху'],
@@ -101,6 +105,14 @@ pCheckBox.appendChild(checkBoxMagnet);
 checkBoxMagnet.addEventListener("change", () => {
 	config.magnetizm = checkBoxMagnet.checked;
 });
+
+
+/** Paragraph */
+const paragraphPotential = document.createElement('p');
+paragraphPotential.id = "potential";
+paragraphPotential.textContent = `X : ${0}\nY : ${0}\nPotential : ${potential}`;
+
+settingsForm.appendChild(paragraphPotential);
 
 /** Making PLANE */
 const plane_geometry = new THREE.PlaneGeometry(43, 30);
@@ -261,6 +273,23 @@ canvas.addEventListener('mousemove', (event) => {
 				cursor_point.position.x = intersects[0].point.x;
 				cursor_point.position.z = intersects[0].point.z;
 			}
+			let x = cursor_point.position.x + 21.5;
+			x = x.toFixed(2);
+			let y = -cursor_point.position.z + 15;
+			y = y.toFixed(2);
+			let electVector1 = meshPositionToVector(electrod1);
+			let electVector2 = meshPositionToVector(electrod2);
+			let currVector = new THREE.Vector3();
+			currVector = meshPositionToVector(cursor_point);
+			let r1 = distanceVector(electVector1, currVector);
+			let r2 = distanceVector(electVector2, currVector);
+			
+
+			const E1 = tay / (2 * Math.PI * r1 * e0);
+			const E2 = tay / (2 * Math.PI * r2 * e0);
+			const E = (E1 + E2).toFixed(2);
+
+			paragraphPotential.textContent = `X : ${x}\nY : ${y}\nPotential : ${E}`;
 			cursor_point.material.visible = true;
 		} else {
 			cursor_point.material.visible = false;
@@ -352,3 +381,21 @@ function updateSizeAfterResize() {
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 	renderer.render(scene, activeCamera);
 };
+
+
+function distanceVector(v1, v2) {
+	const dx = v1.x = v2.x;
+	const dy = v1.y = v2.y;
+	const dz = v1.z = v2.z;
+
+	return  Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+
+function meshPositionToVector(mesh){
+	const vector = new THREE.Vector3();
+	vector.x = mesh.position.x;
+	vector.y = mesh.position.y;
+	vector.z = mesh.position.z;
+	return vector;
+}
