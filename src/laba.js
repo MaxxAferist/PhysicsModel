@@ -5,6 +5,8 @@ import init from './init.js';
 
 const { sizes, scene, canvas, perspectiveCamera, orthographicCamera, renderer, controls_persp, controls_orth, raycaster } = init();
 
+
+
 const axisHelper = new THREE.AxesHelper(25);
 scene.add(axisHelper);
 
@@ -16,9 +18,9 @@ scene.add(group_measuring_points);
 let activeCamera = perspectiveCamera;
 let activeControls = controls_persp;
 
-let potential = 0;
-let tay = 1;
-const e0 = 1;
+const table_width = 43;
+const table_height = 30;
+
 
 const config = {
 	'activeCamera': 'перспективная',
@@ -110,12 +112,12 @@ checkBoxMagnet.addEventListener("change", () => {
 /** Paragraph */
 const paragraphPotential = document.createElement('p');
 paragraphPotential.id = "potential";
-paragraphPotential.textContent = `X : ${0}\nY : ${0}\nPotential : ${potential}`;
+paragraphPotential.textContent = `X : ${0}\nY : ${0}\nPotential : ${"HUINYA"}`;
 
 settingsForm.appendChild(paragraphPotential);
 
 /** Making PLANE */
-const plane_geometry = new THREE.PlaneGeometry(43, 30);
+const plane_geometry = new THREE.PlaneGeometry(table_width, table_height);
 const plane_material = new THREE.MeshStandardMaterial({
 	color: 0xff3333,
 	metalness: 0,
@@ -127,7 +129,7 @@ plane.receiveShadow = true;
 // scene.add(plane);
 
 /** Making TABLE */
-const table_geometry = new THREE.BoxGeometry(43, 30, 1);
+const table_geometry = new THREE.BoxGeometry(table_width, table_height, 1);
 const table_material = new THREE.MeshStandardMaterial({
 	color: 0xff0033,
 	metalness: 0,
@@ -151,7 +153,8 @@ directionalLight.shadow.mapSize = new THREE.Vector2(1024, 1024);
 scene.add(directionalLight);
 
 /** Making ELECTRODS */
-const electrod_geometry = new THREE.CylinderGeometry(1.5, 1.5, 20);
+const electrod_radius = 1.5;
+const electrod_geometry = new THREE.CylinderGeometry(electrod_radius, electrod_radius, 20);
 const electrod_material = new THREE.MeshStandardMaterial({
 	color: 0x999999,
 	metalness: 0,
@@ -250,6 +253,11 @@ const tick = () => {
 	renderer.render(scene, activeCamera);
 	window.requestAnimationFrame(tick);
 };
+
+const calculation_koef = 2;
+const field = initMatrix(table_width, table_height, [electrod1, electrod2], [0.01, 12.92], calculation_koef);
+console.log(field);
+
 tick();
 
 /** Базовые обпаботчики событий длы поддержки ресайза */
@@ -277,19 +285,10 @@ canvas.addEventListener('mousemove', (event) => {
 			x = x.toFixed(2);
 			let y = -cursor_point.position.z + 15;
 			y = y.toFixed(2);
-			let electVector1 = meshPositionToVector(electrod1);
-			let electVector2 = meshPositionToVector(electrod2);
-			let currVector = new THREE.Vector3();
-			currVector = meshPositionToVector(cursor_point);
-			let r1 = distanceVector(electVector1, currVector);
-			let r2 = distanceVector(electVector2, currVector);
-			
-
-			const E1 = tay / (2 * Math.PI * r1 * e0);
-			const E2 = tay / (2 * Math.PI * r2 * e0);
-			const E = (E1 + E2).toFixed(2);
-
-			paragraphPotential.textContent = `X : ${x}\nY : ${y}\nPotential : ${E}`;
+			console.log(parseInt(y * calculation_koef), parseInt(x * calculation_koef));
+			let potential_value = field[parseInt(y * calculation_koef)][parseInt(x * calculation_koef)];
+			potential_value = potential_value.toFixed(2);
+			paragraphPotential.textContent = `X : ${x}\nY : ${y}\nPotential : ${potential_value}`;
 			cursor_point.material.visible = true;
 		} else {
 			cursor_point.material.visible = false;
@@ -384,9 +383,9 @@ function updateSizeAfterResize() {
 
 
 function distanceVector(v1, v2) {
-	const dx = v1.x = v2.x;
-	const dy = v1.y = v2.y;
-	const dz = v1.z = v2.z;
+	const dx = v1.x - v2.x;
+	const dy = v1.y - v2.y;
+	const dz = v1.z - v2.z;
 
 	return  Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
@@ -398,4 +397,82 @@ function meshPositionToVector(mesh){
 	vector.y = mesh.position.y;
 	vector.z = mesh.position.z;
 	return vector;
+}
+
+
+function initMatrix(width, height, meshes, potentials, koef){
+	width *= koef;
+	height *= koef;
+	console.log(width, height);
+	let field = Array(height);
+	for (let i = 0; i < height; i++) {
+		field[i] = Array(width).fill(0);
+	}
+	let meshes_vectors = [];
+	for (let i = 0; i < meshes.length; i++) {
+		let vector = meshPositionToVector(meshes[i]);
+		vector.x += 21.5;
+		vector.y = 0;
+		vector.z += 15;
+		meshes_vectors.push(vector);
+	}
+
+	for (let i = 0; i < height; i++) {
+		for (let j = 0; j < width; j++) {
+			const dot_vector = new THREE.Vector3(j / koef, 0, i / koef);
+			for (let mesh_index = 0; mesh_index < meshes.length; mesh_index++) {
+				if (distanceVector(meshes_vectors[mesh_index], dot_vector) <= electrod_radius) {
+					field[i][j] = potentials[mesh_index];
+					break;
+				}
+			}
+		}
+	}
+	
+	for (let index = 0; index < table_width * koef * 150; index++) {
+		const new_field = getUpdateField(field, potentials);
+		field = new_field;
+	}
+	console.log(field);
+	return field;
+}
+
+
+function getUpdateField(field, potentials){
+	let new_field = Array(field.length);
+	for (let i = 0; i < field.length; i++) {
+		new_field[i] = Array(field[0].length);
+		for (let j = 0; j < field[0].length; j++) {
+			new_field[i][j] = field[i][j];
+		}
+	}
+
+	for (let i = 0; i < field.length; i++) {
+		for (let j = 0; j < field[0].length; j++) {
+			let not_electrod = true;
+			for (let potential_index = 0; potential_index < potentials.length; potential_index++) {
+				if(field[i][j] == potentials[potential_index]){
+					not_electrod = false;
+				}
+			}
+			if (not_electrod) {
+				let summa = 0;
+				let count_neigbour = 8;
+				for (let y = -1; y <= 1; y++) {
+					for (let x = -1; x <= 1; x++) {
+						if ((0 <= i + y && i + y < field.length) && (0 <= j + x && j + x < field[0].length)){
+							if ((x != 0 || y != 0) && field[i + y][j + x]) {
+								summa += field[i + y][j + x];
+							}
+						} else {
+							count_neigbour--;
+						}
+					}
+				}
+				const sr_znach = summa / count_neigbour;
+				new_field[i][j] = sr_znach;
+			}
+		}
+	}
+	return new_field;
 }
