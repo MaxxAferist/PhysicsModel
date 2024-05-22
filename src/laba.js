@@ -2,10 +2,32 @@ import * as THREE from './three.module.js';
 import { FontLoader } from './FontLoader.js';
 import { TextGeometry } from './TextGeometry.js';
 import init from './init.js';
+import { radToDeg } from 'three/src/math/MathUtils.js';
+
+
+
+let sessionData; // Объявляем переменную для хранения данных сессии
+
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/getSessionData')
+        .then(response => response.json())
+        .then(data => {
+            sessionData = data; // Сохраняем данные сессии в переменную
+            console.log(sessionData); // Выводим данные в консоль для проверки
+        })
+        .catch(error => {
+            console.error('Ошибка при получении данных сессии:', error);
+        });
+});
+
+
+const radius1 = parseInt(sessionData["radius1"]) / 10;
+const radius2 = parseInt(sessionData["radius2"]) / 10;
+const potential1 = parseFloat(sessionData["fi1"]);
+const potential2 = parseFloat(sessionData["fi2"]);
+
 
 const { sizes, scene, canvas, perspectiveCamera, orthographicCamera, renderer, controls_persp, controls_orth, raycaster } = init();
-
-
 
 const axisHelper = new THREE.AxesHelper(25);
 scene.add(axisHelper);
@@ -64,6 +86,9 @@ controls_orth.enabled = false;
 const divForm = document.createElement('div');
 divForm.className = "formDiv";
 
+const divBtn = document.createElement('div');
+divBtn.className = "divBtn";
+
 const settingsForm = document.createElement('form');
 settingsForm.name = "setingsForm";
 
@@ -85,7 +110,8 @@ for (let i = 0; i < config.camers.length; i++) {
 
 document.body.appendChild(divForm);
 divForm.appendChild(settingsForm);
-settingsForm.appendChild(pSelect);
+settingsForm.appendChild(divBtn)
+divBtn.appendChild(pSelect);
 pSelect.appendChild(cameraSelect);
 
 cameraSelect.addEventListener("change", () => {
@@ -101,7 +127,7 @@ checkBoxMagnet.id = "magnet";
 const pCheckBox = document.createElement("p");
 pCheckBox.textContent = "Магнитный курсор: "
 
-settingsForm.appendChild(pCheckBox);
+divBtn.appendChild(pCheckBox);
 pCheckBox.appendChild(checkBoxMagnet);
 
 checkBoxMagnet.addEventListener("change", () => {
@@ -110,11 +136,20 @@ checkBoxMagnet.addEventListener("change", () => {
 
 
 /** Paragraph */
+const divPotential = document.createElement('div');
+divPotential.className = "divPotential";
+
 const paragraphPotential = document.createElement('p');
 paragraphPotential.id = "potential";
-paragraphPotential.textContent = `X : ${0}\nY : ${0}\nPotential : ${"HUINYA"}`;
+paragraphPotential.textContent = `X : ${0}\nY : ${0}\nPotential : ${"INFO"}`;
 
-settingsForm.appendChild(paragraphPotential);
+const potentialOn = document.createElement('p');
+potentialOn.id = "potentialOn";
+potentialOn.textContent = `Потанциал на: `;
+
+settingsForm.appendChild(divPotential);
+divPotential.appendChild(paragraphPotential);
+divPotential.appendChild(potentialOn);
 
 /** Making PLANE */
 const plane_geometry = new THREE.PlaneGeometry(table_width, table_height);
@@ -153,21 +188,21 @@ directionalLight.shadow.mapSize = new THREE.Vector2(1024, 1024);
 scene.add(directionalLight);
 
 /** Making ELECTRODS */
-const electrod_radius = 1.5;
-const electrod_geometry = new THREE.CylinderGeometry(electrod_radius, electrod_radius, 20);
+const electrod_geometry1 = new THREE.CylinderGeometry(radius1, radius1, 20);
+const electrod_geometry2 = new THREE.CylinderGeometry(radius2, radius2, 20);
 const electrod_material = new THREE.MeshStandardMaterial({
 	color: 0x999999,
 	metalness: 0,
 	roughness: 0.5,
 })
 
-const electrod1 = new THREE.Mesh(electrod_geometry, electrod_material);
+const electrod1 = new THREE.Mesh(electrod_geometry1, electrod_material);
 electrod1.position.x = 9.5 + (plane.position.x - plane.geometry.parameters.width / 2);
 electrod1.position.z = -15 + (plane.position.z + plane.geometry.parameters.height / 2);
 electrod1.receiveShadow = true;
 scene.add(electrod1);
 
-const electrod2 = new THREE.Mesh(electrod_geometry, electrod_material);
+const electrod2 = new THREE.Mesh(electrod_geometry2, electrod_material);
 electrod2.position.x = 33.5 + (plane.position.x - plane.geometry.parameters.width / 2);
 electrod2.position.z = -15 + (plane.position.z + plane.geometry.parameters.height / 2);
 electrod2.receiveShadow = true;
@@ -255,7 +290,7 @@ const tick = () => {
 };
 
 const calculation_koef = 2;
-const field = initMatrix(table_width, table_height, [electrod1, electrod2], [0.01, 12.92], calculation_koef);
+const field = initMatrix(table_width, table_height, [electrod1, electrod2], [potential1, potential2], calculation_koef);
 console.log(field);
 
 tick();
