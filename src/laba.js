@@ -2,32 +2,54 @@ import * as THREE from './three.module.js';
 import { FontLoader } from './FontLoader.js';
 import { TextGeometry } from './TextGeometry.js';
 import init from './init.js';
-import { radToDeg } from 'three/src/math/MathUtils.js';
 
-
+const { sizes, scene, canvas, perspectiveCamera, orthographicCamera, renderer, controls_persp, controls_orth, raycaster } = init();
 
 let sessionData; // Объявляем переменную для хранения данных сессии
+
+let calculating_config = {
+	"radius1": 0,
+	"radius2": 0,
+	"potential1": 0,
+	"potential2": 0,
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/getSessionData')
         .then(response => response.json())
         .then(data => {
             sessionData = data; // Сохраняем данные сессии в переменную
-            console.log(sessionData); // Выводим данные в консоль для проверки
-        })
+			calculating_config["radius1"] = parseInt(sessionData['radius1']) / 10;
+			calculating_config["radius2"] = parseInt(sessionData['radius2']) / 10;
+			calculating_config["potential1"] = parseFloat(sessionData["fi1"]) + 0.0001;
+			calculating_config["potential2"] = parseFloat(sessionData["fi2"]) + 0.0001;
+
+			radius1 = calculating_config["radius1"];
+			radius2 = calculating_config["radius2"];
+			potential1 = calculating_config["potential1"];
+			potential2 = calculating_config["potential2"];
+
+			electrod1.geometry = new THREE.CylinderGeometry(radius1, radius1, 20);
+            electrod2.geometry = new THREE.CylinderGeometry(radius2, radius2, 20);
+			radiuses = [radius1, radius2];
+			console.log(sessionData); // Выводим данные в консоль для проверки
+			field = initMatrix(table_width, table_height, [electrod1, electrod2], [potential1, potential2], calculation_koef);
+			// console.log(field);
+		})
         .catch(error => {
             console.error('Ошибка при получении данных сессии:', error);
         });
 });
 
+let radius1 = calculating_config["radius1"];
+let radius2 = calculating_config["radius2"];
+let potential1 = calculating_config["potential1"];
+let potential2 = calculating_config["potential2"];
 
-const radius1 = parseInt(sessionData["radius1"]) / 10;
-const radius2 = parseInt(sessionData["radius2"]) / 10;
-const potential1 = parseFloat(sessionData["fi1"]);
-const potential2 = parseFloat(sessionData["fi2"]);
+const calculation_koef = 2;
+let field;
 
-
-const { sizes, scene, canvas, perspectiveCamera, orthographicCamera, renderer, controls_persp, controls_orth, raycaster } = init();
+let radiuses = [radius1, radius2];
 
 const axisHelper = new THREE.AxesHelper(25);
 scene.add(axisHelper);
@@ -43,6 +65,7 @@ let activeControls = controls_persp;
 const table_width = 43;
 const table_height = 30;
 
+let maxIdPoint = 1;
 
 const config = {
 	'activeCamera': 'перспективная',
@@ -97,6 +120,9 @@ pSelect.textContent = "Камера: "
 
 const cameraSelect = document.createElement("select");
 cameraSelect.name = "cameraSelect";
+
+const dataText = document.getElementById("dataText");
+dataText.textContent = "";
 
 for (let i = 0; i < config.camers.length; i++) {
 	const option = document.createElement('option');
@@ -249,7 +275,7 @@ const group_text = new THREE.Group();
 
 for (let i = 0; i < checkMesh_width; i++) {
 	const loaderFont = new FontLoader();
-	loaderFont.load('./fonts/Nyasha Sans_Regular.json', function ( font ) {
+	loaderFont.load('./fonts/Nyasha_Sans_Regular.json', function ( font ) {
 		const text_geometry = new TextGeometry(i.toString(), {
 			font: font,
 			size: 0.25,
@@ -266,7 +292,7 @@ for (let i = 0; i < checkMesh_width; i++) {
 
 for (let i = 0; i < checkMesh_height; i++) {
 	const loaderFont = new FontLoader();
-	loaderFont.load('./fonts/Nyasha Sans_Regular.json', function ( font ) {
+	loaderFont.load('./fonts/Nyasha_Sans_Regular.json', function ( font ) {
 		const text_geometry = new TextGeometry(i.toString(), {
 			font: font,
 			size: 0.25,
@@ -288,10 +314,6 @@ const tick = () => {
 	renderer.render(scene, activeCamera);
 	window.requestAnimationFrame(tick);
 };
-
-const calculation_koef = 2;
-const field = initMatrix(table_width, table_height, [electrod1, electrod2], [potential1, potential2], calculation_koef);
-console.log(field);
 
 tick();
 
@@ -320,10 +342,9 @@ canvas.addEventListener('mousemove', (event) => {
 			x = x.toFixed(2);
 			let y = -cursor_point.position.z + 15;
 			y = y.toFixed(2);
-			console.log(parseInt(y * calculation_koef), parseInt(x * calculation_koef));
 			let potential_value = field[parseInt(y * calculation_koef)][parseInt(x * calculation_koef)];
 			potential_value = potential_value.toFixed(2);
-			paragraphPotential.textContent = `X : ${x}\nY : ${y}\nPotential : ${potential_value}`;
+			paragraphPotential.textContent = `X : ${x}   Y : ${y}   Potential : ${potential_value}`;
 			cursor_point.material.visible = true;
 		} else {
 			cursor_point.material.visible = false;
@@ -348,11 +369,25 @@ canvas.addEventListener("mousedown", (event) => {
 			const material_measuring_point = new THREE.MeshBasicMaterial({
 				color: 0xffcc33,
 			});
-			const measuring_point = new THREE.Mesh(geometry_measuring_point, material_measuring_point);
+			let measuring_point = new THREE.Mesh(geometry_measuring_point, material_measuring_point);
+			measuring_point.idPoint = maxIdPoint;
+			maxIdPoint++;
 			group_measuring_points.add(measuring_point);
 	
 			measuring_point.position.x = cursor_point.position.x;
 			measuring_point.position.z = cursor_point.position.z;
+
+			let x = cursor_point.position.x + 21.5;
+			x = x.toFixed(2);
+			let y = -cursor_point.position.z + 15;
+			y = y.toFixed(2);
+			let potential_value = field[parseInt(y * calculation_koef)][parseInt(x * calculation_koef)];
+			potential_value = potential_value.toFixed(2);
+
+			const p = document.createElement('p');
+			p.id = `id_${measuring_point.idPoint}`;
+			p.textContent = `X: ${x}  Y: ${y}\t  ф: ${potential_value}`;
+			dataText.appendChild(p);
 		}
 	} else if (event.button === 2){
 		if (config.activeCamera === 'вид сверху'){
@@ -362,7 +397,9 @@ canvas.addEventListener("mousedown", (event) => {
 				const object = intersects[i].object;
 				object.geometry.dispose();
 				object.material.dispose();
+				const p = document.getElementById(`id_${object.idPoint}`);
 				group_measuring_points.remove(object);
+				p.remove();
 				renderer.renderLists.dispose();
 			}
 		}
@@ -438,7 +475,6 @@ function meshPositionToVector(mesh){
 function initMatrix(width, height, meshes, potentials, koef){
 	width *= koef;
 	height *= koef;
-	console.log(width, height);
 	let field = Array(height);
 	for (let i = 0; i < height; i++) {
 		field[i] = Array(width).fill(0);
@@ -456,7 +492,7 @@ function initMatrix(width, height, meshes, potentials, koef){
 		for (let j = 0; j < width; j++) {
 			const dot_vector = new THREE.Vector3(j / koef, 0, i / koef);
 			for (let mesh_index = 0; mesh_index < meshes.length; mesh_index++) {
-				if (distanceVector(meshes_vectors[mesh_index], dot_vector) <= electrod_radius) {
+				if (distanceVector(meshes_vectors[mesh_index], dot_vector) <= radiuses[mesh_index]) {
 					field[i][j] = potentials[mesh_index];
 					break;
 				}
@@ -468,7 +504,6 @@ function initMatrix(width, height, meshes, potentials, koef){
 		const new_field = getUpdateField(field, potentials);
 		field = new_field;
 	}
-	console.log(field);
 	return field;
 }
 
@@ -510,4 +545,4 @@ function getUpdateField(field, potentials){
 		}
 	}
 	return new_field;
-}
+}s
